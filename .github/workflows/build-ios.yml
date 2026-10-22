@@ -1,7 +1,7 @@
 name: Build iOS IPA
 on:
   push:
-    branches: [ "cmp-rewrite" ]
+    branches: [ "cmp-rewrite", "cmp-reescrever" ]
   workflow_dispatch:
 jobs:
   build:
@@ -9,11 +9,20 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
+          
+      - name: Set Xcode Version
+        run: |
+          sudo xcode-select -switch /Applications/Xcode_15.4.app
+          xcodebuild -version
+          
       - name: Build iOS App Archive
         run: |
           env NUVIO_IOS_DISTRIBUTION=full xcodebuild archive \
@@ -24,12 +33,14 @@ jobs:
             -archivePath $RUNNER_TEMP/iosApp.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             build
+            
       - name: Create Unsigned IPA
         run: |
           mkdir -p $RUNNER_TEMP/Payload
           cp -r $RUNNER_TEMP/iosApp.xcarchive/Products/Applications/iosApp.app $RUNNER_TEMP/Payload/
           cd $RUNNER_TEMP
           zip -r Nuvio.ipa Payload
+          
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
