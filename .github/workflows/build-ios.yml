@@ -1,33 +1,48 @@
 name: Build iOS IPA
+
 on:
   push:
-    branches: [ "cmp-reescrever" ]
-  workflow_dispatch:
+    branches: [ "main" ] # Ou a branch que você estiver usando
+  workflow_dispatch: # Permite rodar manualmente
+
 jobs:
   build:
-    runs-on: macos-latest
+    name: Build iOS App
+    runs-on: macos-latest # O runner da Apple que o GitHub fornece
+    
     steps:
-      - name: Checkout Code
+      - name: Checkout
         uses: actions/checkout@v4
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
         with:
-          submodules: recursive
-      - name: Setup Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'temurin'
-          java-version: '17'
-      - name: Prepare iOS Dependencies
+          node-version: '18'
+          cache: 'npm' # ou 'yarn'
+          
+      - name: Install dependencies
+        run: npm install # ou yarn install
+        
+      - name: Archive Project
         run: |
-          chmod +x ./scripts/prepare-ios-dependencies.sh
-          ./scripts/prepare-ios-dependencies.sh
-      - name: Build iOS IPA
-        env:
-          IOS_CONFIGURATION: Release
+          xcodebuild archive \
+            -project iosApp/iosApp.xcodeproj \
+            -scheme iosApp \
+            -sdk iphoneos \
+            -configuration Release \
+            -archivePath MainApp.xcarchive \
+            CODE_SIGNING_ALLOWED=NO
+      
+      - name: Export IPA
         run: |
-          chmod +x ./scripts/build-ios-ipa.sh
-          ./scripts/build-ios-ipa.sh
+          xcodebuild -exportArchive \
+            -archivePath MainApp.xcarchive \
+            -exportOptionsPlist ExportOptions.plist \
+            -exportPath app.ipa \
+            -allowProvisioningUpdates
+      
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Nuvio-iOS-IPA
-          path: build/ios-ipa/*.ipa
+          path: app.ipa/*.ipa
