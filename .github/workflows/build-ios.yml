@@ -5,48 +5,60 @@ on:
     branches: [ "cmp-rewrite", "cmp-reescrever" ]
   workflow_dispatch:
 
+permissions:
+  contents: read
+
 jobs:
   build:
-    runs-on: macos-latest
-    
+    name: Build unsigned full Release IPA
+    runs-on: macos-26
+    timeout-minutes: 180
+
+    env:
+      DEVELOPER_DIR: /Applications/Xcode_26.6.app/Contents/Developer
+      GRADLE_OPTS: -Dfile.encoding=UTF-8
+      IOS_CONFIGURATION: Release
+      KOTLIN_DAEMON_JVMARGS: -Xmx1024M
+      NUVIO_GRADLE_JVMARGS: -Xmx2048M -Dfile.encoding=UTF-8 -XX:MaxMetaspaceSize=768M -XX:+UseG1GC
+      NUVIO_KOTLIN_NATIVE_JVMARGS: -Xmx9216M -XX:+UseG1GC
+
     steps:
       - name: Checkout Code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           submodules: recursive
           fetch-depth: 0
 
       - name: Setup Java
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v5
         with:
-          distribution: 'zulu'
+          distribution: 'temurin'
           java-version: '17'
 
-      - name: Fix Permissions and Xcode
-        run: |
-          chmod +x gradlew
-          sudo xcode-select -switch /Applications/Xcode_15.4.app
+      - name: Setup Gradle
+        uses: gradle/actions/setup-gradle@v6
 
-      - name: Build iOS App Archive
-        run: |
-          env NUVIO_IOS_DISTRIBUTION=full xcodebuild archive \
-            -project iosApp/iosApp.xcodeproj \
-            -scheme iosApp \
-            -configuration Release \
-            -sdk iphoneos \
-            -archivePath $RUNNER_TEMP/iosApp.xcarchive \
-            CODE_SIGNING_ALLOWED=NO \
-            build
+      - name: Cache Kotlin Native
+        uses: actions/cache@v5
+        with:
+          path: ~/.konan
+          key: konan-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('gradle/libs.versions.toml') }}
+          restore-keys: |
+            konan-${{ runner.os }}-${{ runner.arch }}-
 
-      - name: Create Unsigned IPA
+      - name: Verify Apple toolchain
         run: |
-          mkdir -p $RUNNER_TEMP/Payload
-          cp -r $RUNNER_TEMP/iosApp.xcarchive/Products/Applications/iosApp.app $RUNNER_TEMP/Payload/
-          cd $RUNNER_TEMP
-          zip -r Nuvio.ipa Payload
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+
+      - name: Prepare iOS Dependencies
+        run: ./scripts/prepare-ios-dependencies.sh
+
+      - name: Build iOS IPA
+        run: ./scripts/build-ios-ipa.sh
 
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Nuvio-iOS-IPA
-          path: $RUNNER_TEMP/Nuvio.ipa
+          path: build/ios-ipa/*.ipa
