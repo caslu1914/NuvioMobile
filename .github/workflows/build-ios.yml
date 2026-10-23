@@ -11,25 +11,21 @@ jobs:
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'temurin'
           java-version: '17'
-          
       - name: Prepare iOS Dependencies
         run: |
           chmod +x ./scripts/prepare-ios-dependencies.sh
           ./scripts/prepare-ios-dependencies.sh
-          
       - name: Build iOS IPA
         env:
           IOS_CONFIGURATION: Release
         run: |
           chmod +x ./scripts/build-ios-ipa.sh
           ./scripts/build-ios-ipa.sh
-          
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
