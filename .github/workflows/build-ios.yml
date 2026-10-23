@@ -1,48 +1,42 @@
 name: Build iOS IPA
-
 on:
   push:
-    branches: [ "main" ] # Ou a branch que você estiver usando
-  workflow_dispatch: # Permite rodar manualmente
-
+    branches: [ "cmp-rewrite", "cmp-reescrever" ]
+  workflow_dispatch:
 jobs:
   build:
-    name: Build iOS App
-    runs-on: macos-latest # O runner da Apple que o GitHub fornece
-    
+    runs-on: macos-latest
     steps:
-      - name: Checkout
+      - name: Checkout Code
         uses: actions/checkout@v4
-      
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
         with:
-          node-version: '18'
-          cache: 'npm' # ou 'yarn'
+          submodules: recursive
           
-      - name: Install dependencies
-        run: npm install # ou yarn install
-        
-      - name: Archive Project
+      - name: Setup Java
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'zulu'
+          java-version: '17'
+          
+      - name: Build iOS App
         run: |
-          xcodebuild archive \
+          env NUVIO_IOS_DISTRIBUTION=full xcodebuild \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \
-            -sdk iphoneos \
             -configuration Release \
-            -archivePath MainApp.xcarchive \
-            CODE_SIGNING_ALLOWED=NO
-      
-      - name: Export IPA
+            -sdk iphoneos \
+            -derivedDataPath build/ios-derived-full \
+            CODE_SIGNING_ALLOWED=NO \
+            build
+            
+      - name: Create IPA
         run: |
-          xcodebuild -exportArchive \
-            -archivePath MainApp.xcarchive \
-            -exportOptionsPlist ExportOptions.plist \
-            -exportPath app.ipa \
-            -allowProvisioningUpdates
-      
+          mkdir -p Payload
+          cp -r build/ios-derived-full/Build/Products/Release-iphoneos/iosApp.app Payload/
+          zip -r Nuvio.ipa Payload
+          
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Nuvio-iOS-IPA
-          path: app.ipa/*.ipa
+          path: Nuvio.ipa
