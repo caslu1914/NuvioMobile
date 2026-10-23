@@ -1,42 +1,52 @@
 name: Build iOS IPA
+
 on:
   push:
     branches: [ "cmp-rewrite", "cmp-reescrever" ]
   workflow_dispatch:
+
 jobs:
   build:
     runs-on: macos-latest
+    
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           submodules: recursive
-          
+          fetch-depth: 0
+
       - name: Setup Java
         uses: actions/setup-java@v4
         with:
           distribution: 'zulu'
           java-version: '17'
-          
-      - name: Build iOS App
+
+      - name: Fix Permissions and Xcode
         run: |
-          env NUVIO_IOS_DISTRIBUTION=full xcodebuild \
+          chmod +x gradlew
+          sudo xcode-select -switch /Applications/Xcode_15.4.app
+
+      - name: Build iOS App Archive
+        run: |
+          env NUVIO_IOS_DISTRIBUTION=full xcodebuild archive \
             -project iosApp/iosApp.xcodeproj \
             -scheme iosApp \
             -configuration Release \
             -sdk iphoneos \
-            -derivedDataPath build/ios-derived-full \
+            -archivePath $RUNNER_TEMP/iosApp.xcarchive \
             CODE_SIGNING_ALLOWED=NO \
             build
-            
-      - name: Create IPA
+
+      - name: Create Unsigned IPA
         run: |
-          mkdir -p Payload
-          cp -r build/ios-derived-full/Build/Products/Release-iphoneos/iosApp.app Payload/
+          mkdir -p $RUNNER_TEMP/Payload
+          cp -r $RUNNER_TEMP/iosApp.xcarchive/Products/Applications/iosApp.app $RUNNER_TEMP/Payload/
+          cd $RUNNER_TEMP
           zip -r Nuvio.ipa Payload
-          
+
       - name: Upload IPA Artifact
         uses: actions/upload-artifact@v4
         with:
           name: Nuvio-iOS-IPA
-          path: Nuvio.ipa
+          path: $RUNNER_TEMP/Nuvio.ipa
